@@ -5,7 +5,8 @@
 ## プロジェクト概要
 
 - プロジェクト名: `tet-puyo`
-- 現時点では初期状態です。構成や技術スタックが決まったら、この文書も更新してください。
+- TypeScript、Vite、React、Tailwind CSSで構成されたPC向けパズルゲームです。
+- Biomeで整形・静的解析し、Vitestでゲームロジックを単体テストします。
 
 ## 作業方針
 
@@ -43,3 +44,7 @@
 ## ai attributionについて
 
 codexのai attributionをコミットメッセージに付与する
+
+## readme
+
+README.mdは不要

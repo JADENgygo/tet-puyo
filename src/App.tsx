@@ -1,32 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  emptyPuyoBoard,
-  isValidPuyo,
-  lockPuyo,
-  movePuyo,
-  type PuyoBoard,
-  type PuyoPair,
-  paintPuyo,
-  randomPuyoPair,
-  resolvePuyoChains,
-  rotatePuyo,
-} from "./game/puyo";
-import {
-  clearTetrisLines,
-  emptyTetrisBoard,
-  isValidTetris,
-  lockTetromino,
-  moveTetromino,
-  paintTetris,
-  randomTetromino,
-  rotateTetromino,
-  type TetrisBoard,
-  type Tetromino,
-} from "./game/tetris";
+import { useEffect, useReducer, useState } from "react";
+import { type PuyoPair, paintPuyo, randomPuyoPair } from "./game/puyo";
+import { createInitialGameState, gameReducer } from "./game/reducer";
+import { paintTetris, randomTetromino, type Tetromino } from "./game/tetris";
 
-type Side = "tet" | "puyo";
 type Theme = "light" | "dark";
-type GameAction =
+type GameCommand =
   | "left"
   | "right"
   | "down"
@@ -118,18 +96,23 @@ function PadKey({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const [theme, setTheme] = useState<Theme>(preferredTheme);
-  const [active, setActive] = useState<Side>("puyo");
-  const [started, setStarted] = useState(false);
-  const [gameOver, setGameOver] = useState(false);
-  const [tetBoard, setTetBoard] = useState<TetrisBoard>(emptyTetrisBoard);
-  const [tetPiece, setTetPiece] = useState<Tetromino>(randomTetromino);
-  const [tetNext, setTetNext] = useState<Tetromino>(randomTetromino);
-  const [puyoBoard, setPuyoBoard] = useState<PuyoBoard>(emptyPuyoBoard);
-  const [puyoPair, setPuyoPair] = useState<PuyoPair>(randomPuyoPair);
-  const [puyoNext, setPuyoNext] = useState<PuyoPair>(randomPuyoPair);
-  const [score, setScore] = useState({ tet: 0, puyo: 0 });
-  const stateRef = useRef({ started, gameOver, active });
-  stateRef.current = { started, gameOver, active };
+  const [game, dispatch] = useReducer(
+    gameReducer,
+    undefined,
+    createInitialGameState,
+  );
+  const {
+    active,
+    started,
+    gameOver,
+    tetBoard,
+    tetPiece,
+    tetNext,
+    puyoBoard,
+    puyoPair,
+    puyoNext,
+    score,
+  } = game;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -143,115 +126,32 @@ export default function App() {
     localStorage.setItem("furufuru-theme", theme);
   }, [theme]);
 
-  function reset() {
-    setTetBoard(emptyTetrisBoard());
-    setTetPiece(randomTetromino());
-    setTetNext(randomTetromino());
-    setPuyoBoard(emptyPuyoBoard());
-    setPuyoPair(randomPuyoPair());
-    setPuyoNext(randomPuyoPair());
-    setScore({ tet: 0, puyo: 0 });
-    setActive("puyo");
-    setStarted(false);
-    setGameOver(false);
+  function replacementPieces() {
+    return { tetNext: randomTetromino(), puyoNext: randomPuyoPair() };
   }
 
-  function spawnTet(board: TetrisBoard) {
-    const incoming = { ...tetNext, cells: [...tetNext.cells], x: 3, y: 0 };
-    setTetPiece(incoming);
-    setTetNext(randomTetromino());
-    if (!isValidTetris(board, incoming)) setGameOver(true);
-  }
-
-  function dropTet() {
-    if (!started || gameOver) return;
-    const moved = moveTetromino(tetPiece, 0, 1);
-    if (isValidTetris(tetBoard, moved)) setTetPiece(moved);
-    else {
-      const result = clearTetrisLines(lockTetromino(tetBoard, tetPiece));
-      setTetBoard(result.board);
-      setScore((value) => ({
-        ...value,
-        tet: value.tet + result.cleared * 100,
-      }));
-      spawnTet(result.board);
-    }
-  }
-
-  function spawnPuyo(board: PuyoBoard) {
-    const incoming = {
-      ...puyoNext,
-      colors: [...puyoNext.colors] as PuyoPair["colors"],
-      x: 2,
-      y: 1,
-      rotation: 0,
-    };
-    setPuyoPair(incoming);
-    setPuyoNext(randomPuyoPair());
-    if (!isValidPuyo(board, incoming)) setGameOver(true);
-  }
-
-  function dropPuyo() {
-    if (!started || gameOver) return;
-    const moved = movePuyo(puyoPair, 0, 1);
-    if (isValidPuyo(puyoBoard, moved)) setPuyoPair(moved);
-    else {
-      const result = resolvePuyoChains(lockPuyo(puyoBoard, puyoPair));
-      setPuyoBoard(result.board);
-      setScore((value) => ({
-        ...value,
-        puyo: value.puyo + result.cleared * 10 * Math.max(result.chains, 1),
-      }));
-      spawnPuyo(result.board);
-    }
-  }
-
-  function action(command: GameAction) {
-    if (command === "tet" || command === "puyo") return setActive(command);
-    if (
-      (command === "confirm" || command === "rotate") &&
-      (!started || gameOver)
-    ) {
-      if (gameOver) reset();
-      setStarted(true);
+  function action(command: GameCommand) {
+    if (command === "tet" || command === "puyo") {
+      dispatch({ type: "SELECT", side: command });
       return;
     }
-    if (!started || gameOver) return;
-    if (active === "tet") {
-      if (command === "down") return dropTet();
-      const candidate =
-        command === "rotate"
-          ? rotateTetromino(tetPiece)
-          : moveTetromino(tetPiece, command === "left" ? -1 : 1, 0);
-      if (isValidTetris(tetBoard, candidate)) setTetPiece(candidate);
-    } else {
-      if (command === "down") return dropPuyo();
-      let candidate =
-        command === "rotate"
-          ? rotatePuyo(puyoPair)
-          : movePuyo(puyoPair, command === "left" ? -1 : 1, 0);
-      if (command === "rotate" && !isValidPuyo(puyoBoard, candidate)) {
-        const kicked = movePuyo(
-          candidate,
-          candidate.rotation === 1 ? -1 : 1,
-          0,
-        );
-        if (isValidPuyo(puyoBoard, kicked)) candidate = kicked;
-      }
-      if (isValidPuyo(puyoBoard, candidate)) setPuyoPair(candidate);
+    if (command === "left" || command === "right") {
+      dispatch({ type: "MOVE", dx: command === "left" ? -1 : 1 });
+      return;
     }
+    if (command === "down") {
+      dispatch({ type: "DROP_ACTIVE", ...replacementPieces() });
+      return;
+    }
+    dispatch({
+      type: "ROTATE_OR_START",
+      initialState: createInitialGameState(),
+    });
   }
-
-  const actionRef = useRef(action);
-  actionRef.current = action;
-  const dropTetRef = useRef(dropTet);
-  const dropPuyoRef = useRef(dropPuyo);
-  dropTetRef.current = dropTet;
-  dropPuyoRef.current = dropPuyo;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const map: Record<string, GameAction> = {
+      const map: Record<string, GameCommand> = {
         a: "left",
         d: "right",
         s: "down",
@@ -264,7 +164,7 @@ export default function App() {
       if (command) {
         event.preventDefault();
         if (event.repeat && command !== "down") return;
-        actionRef.current(command);
+        action(command);
       }
     };
     addEventListener("keydown", onKey);
@@ -274,8 +174,7 @@ export default function App() {
   useEffect(() => {
     if (!started || gameOver) return;
     const dropTimer = window.setInterval(() => {
-      dropTetRef.current();
-      dropPuyoRef.current();
+      dispatch({ type: "TICK", ...replacementPieces() });
     }, DROP_INTERVAL);
     return () => clearInterval(dropTimer);
   }, [gameOver, started]);
@@ -293,20 +192,15 @@ export default function App() {
         if (axisX < -0.55 || pad.buttons[14]?.pressed) pressed.add("left");
         if (axisX > 0.55 || pad.buttons[15]?.pressed) pressed.add("right");
         if (axisY > 0.55 || pad.buttons[13]?.pressed) pressed.add("down");
-        if (pad.buttons[0]?.pressed)
-          pressed.add(
-            stateRef.current.started && !stateRef.current.gameOver
-              ? "rotate"
-              : "confirm",
-          );
+        if (pad.buttons[0]?.pressed) pressed.add("rotate");
         if (pad.buttons[4]?.pressed) pressed.add("puyo");
         if (pad.buttons[5]?.pressed) pressed.add("tet");
         for (const key of pressed) {
           if (!previous.has(key)) {
-            actionRef.current(key as GameAction);
+            action(key as GameCommand);
             if (key === "down") nextDownRepeat = timestamp + 220;
           } else if (key === "down" && timestamp >= nextDownRepeat) {
-            actionRef.current("down");
+            action("down");
             nextDownRepeat = timestamp + 70;
           }
         }

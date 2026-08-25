@@ -282,10 +282,10 @@ export default function App() {
           </section>
           <aside className="order-2 flex flex-col items-center gap-[17px] self-center">
             <div className="flex min-h-[108px] w-[100px] flex-col items-center justify-center gap-2 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-lg">
-              <MiniPuyo pair={puyoNext} />
               <small className="text-[10px] tracking-[.2em] text-[var(--muted)]">
                 NEXT
               </small>
+              <MiniPuyo pair={puyoNext} />
             </div>
             <div className="flex min-h-[108px] w-[100px] flex-col items-center justify-center gap-2 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-lg">
               <small className="text-[10px] tracking-[.2em] text-[var(--muted)]">
